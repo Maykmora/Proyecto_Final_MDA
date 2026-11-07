@@ -1,5 +1,13 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QMainWindow, QWidget, QStackedWidget, QFrame,QVBoxLayout, QHBoxLayout, QFormLayout,QPushButton, QLabel, QLineEdit,QTableWidget, QHeaderView, QAbstractItemView,QMessageBox,)
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QStackedWidget, QFrame,
+    QVBoxLayout, QHBoxLayout, QFormLayout,
+    QPushButton, QLabel, QLineEdit,
+    QTableWidget, QHeaderView, QAbstractItemView,
+    QTableWidgetItem, QMessageBox,
+)
+
+import contactos
 
 elementos = {}
 
@@ -13,7 +21,6 @@ QWidget {
     color: #0f172a;
 }
 
-/* ---------- Menú lateral ---------- */
 QFrame#barra_lateral {
     background-color: #1e293b;
 }
@@ -48,7 +55,6 @@ QPushButton#boton_menu:checked {
     font-weight: bold;
 }
 
-/* ---------- Títulos y tarjetas ---------- */
 QLabel#titulo_pagina {
     font-size: 26px;
     font-weight: bold;
@@ -75,7 +81,6 @@ QLabel#etiqueta_estado {
     padding: 8px 12px;
 }
 
-/* ---------- Formularios ---------- */
 QLineEdit {
     background-color: #ffffff;
     border: 1px solid #cbd5e1;
@@ -86,7 +91,6 @@ QLineEdit:focus {
     border: 2px solid #4f46e5;
 }
 
-/* ---------- Botones ---------- */
 QPushButton#primario {
     background-color: #4f46e5;
     color: #ffffff;
@@ -109,7 +113,6 @@ QPushButton#secundario:hover {
     background-color: #f1f5f9;
 }
 
-/* ---------- Tabla ---------- */
 QTableWidget {
     background-color: #ffffff;
     alternate-background-color: #f8fafc;
@@ -136,6 +139,7 @@ QStatusBar {
 
 def mensaje_exito(texto):
     QMessageBox.information(elementos["ventana"], "Operación exitosa", texto)
+
 
 def mensaje_advertencia(texto):
     QMessageBox.warning(elementos["ventana"], "Advertencia", texto)
@@ -242,11 +246,13 @@ def crear_pagina_contactos():
     elementos["etiqueta_posicion"] = QLabel(
         "Posición en el archivo (tell): todavía no se ha realizado ninguna operación")
     elementos["etiqueta_posicion"].setObjectName("etiqueta_estado")
+    elementos["etiqueta_posicion"].setWordWrap(True)
     layout_tarjeta.addWidget(elementos["etiqueta_posicion"])
 
     layout.addWidget(tarjeta)
 
-    columnas = ["ID", "Nombre", "Teléfono", "Correo", "Ciudad","N° registro", "Posición (byte)"]
+    columnas = ["ID", "Nombre", "Teléfono", "Correo", "Ciudad",
+                "N° registro", "Posición (byte)"]
     tabla = QTableWidget(0, len(columnas))
     tabla.setHorizontalHeaderLabels(columnas)
     tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -321,6 +327,7 @@ def crear_pagina_herramientas():
     layout.addStretch()
     return pagina
 
+
 def crear_pagina_ayuda():
     pagina = QWidget()
     pagina.setObjectName("contenido")
@@ -376,6 +383,11 @@ def leer_formulario():
         mensaje_advertencia("Debe llenar todos los campos del contacto.")
         return None
 
+    problema = contactos.validar_largos(contacto)
+    if problema != "":
+        mensaje_advertencia(problema)
+        return None
+
     return contacto
 
 
@@ -405,41 +417,136 @@ def limpiar_formulario():
     elementos["ventana"].statusBar().showMessage("Formulario limpio", 3000)
 
 
+def mostrar_error_archivo(error):
+    if isinstance(error, PermissionError):
+        mensaje_error("No hay permisos para leer o escribir el archivo de contactos.")
+    elif isinstance(error, ValueError):
+        mensaje_error("El archivo de contactos está dañado o tiene datos incorrectos.\n\n"
+                      + str(error))
+    else:
+        mensaje_error("No se pudo usar el archivo de contactos.\n\n" + str(error))
+
+
+def mostrar_posiciones(operacion, numero, inicio, fin):
+    texto = (operacion + " registro N° " + str(numero)
+             + "   |   seek(" + str(inicio) + ") -> tell() = " + str(inicio)
+             + "   |   después de la operación: tell() = " + str(fin))
+    elementos["etiqueta_posicion"].setText(texto)
+
+
+def llenar_formulario(contacto):
+    elementos["campo_id"].setText(str(contacto["id"]))
+    elementos["campo_nombre"].setText(contacto["nombre"])
+    elementos["campo_telefono"].setText(contacto["telefono"])
+    elementos["campo_correo"].setText(contacto["correo"])
+    elementos["campo_ciudad"].setText(contacto["ciudad"])
+
+
+def actualizar_tabla():
+    tabla = elementos["tabla_contactos"]
+    try:
+        lista = contactos.listar_contactos()
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    tabla.setRowCount(0)
+    for numero, contacto, inicio in lista:
+        fila = tabla.rowCount()
+        tabla.insertRow(fila)
+        valores = [contacto["id"], contacto["nombre"], contacto["telefono"],
+                   contacto["correo"], contacto["ciudad"], numero, inicio]
+        for columna in range(len(valores)):
+            tabla.setItem(fila, columna, QTableWidgetItem(str(valores[columna])))
+
+
 def agregar_contacto():
     contacto = leer_formulario()
     if contacto is None:
         return
-    mensaje_exito("Los datos del contacto son válidos.\n\n"
-                  "El guardado en el archivo se implementa en el COMMIT 2.")
+
+    try:
+        resultado = contactos.agregar_contacto(contacto)
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if resultado is None:
+        mensaje_advertencia("Ya existe un contacto con el ID " + str(contacto["id"]) + ".")
+        return
+
+    numero, inicio, fin = resultado
+    mostrar_posiciones("Se escribió el", numero, inicio, fin)
+    actualizar_tabla()
+    limpiar_formulario()
+    mensaje_exito("Contacto agregado en el registro N° " + str(numero) + ".")
+
 
 def buscar_contacto():
-    numero = leer_id_buscado()
-    if numero is None:
+    id_buscado = leer_id_buscado()
+    if id_buscado is None:
         return
-    mensaje_exito("Se buscará el ID " + str(numero) + ".\n\n"
-                  "La búsqueda con seek() se implementa en el COMMIT 2.")
+
+    try:
+        resultado = contactos.buscar_por_id(id_buscado)
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if resultado is None:
+        mensaje_advertencia("No existe un contacto con el ID " + str(id_buscado) + ".")
+        return
+
+    numero, contacto, inicio, fin = resultado
+    llenar_formulario(contacto)
+    mostrar_posiciones("Se leyó el", numero, inicio, fin)
+    elementos["tabla_contactos"].selectRow(numero)
+    elementos["ventana"].statusBar().showMessage("Contacto encontrado", 3000)
+
 
 def modificar_contacto():
     contacto = leer_formulario()
     if contacto is None:
         return
-    mensaje_exito("Los datos del contacto son válidos.\n\n"
-                  "La modificación en el lugar se implementa en el COMMIT 2.")
+
+    try:
+        resultado = contactos.modificar_contacto(contacto)
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if resultado is None:
+        mensaje_advertencia("No existe un contacto con el ID " + str(contacto["id"])
+                            + ". Use el botón Agregar para crearlo.")
+        return
+
+    numero, inicio, fin = resultado
+    mostrar_posiciones("Se sobrescribió el", numero, inicio, fin)
+    actualizar_tabla()
+    elementos["tabla_contactos"].selectRow(numero)
+    mensaje_exito("Contacto modificado. Solo se sobrescribió el registro N° "
+                  + str(numero) + ".")
+
 
 def exportar_json():
     mensaje_advertencia("La exportación a JSON se implementa en el COMMIT 4.")
 
+
 def generar_pdf():
     mensaje_advertencia("El reporte PDF se implementa en el COMMIT 4.")
+
 
 def verificar_integridad():
     mensaje_advertencia("La verificación de integridad se implementa en el COMMIT 5.")
 
+
 def crear_respaldo():
     mensaje_advertencia("El respaldo ZIP se implementa en el COMMIT 5.")
 
+
 def informacion_archivo():
     mensaje_advertencia("La información del archivo se implementa en el COMMIT 6.")
+
 
 def abrir_manual():
     mensaje_exito("MANUAL DE USUARIO (simulado)\n\n"
@@ -449,27 +556,35 @@ def abrir_manual():
                   "4. Para modificar, busque el contacto, cambie los datos "
                   "y presione Modificar.")
 
+
 def acerca_de():
     mensaje_exito("Agenda de Contactos con Acceso Aleatorio\n\n"
                   "Laboratorio No. 2 - Manejo de archivos\n"
                   "Universidad Rafael Landívar - Campus de Quetzaltenango")
 
+
 def cambiar_pagina(numero):
     elementos["paginas"].setCurrentIndex(numero)
+
     for i in range(len(elementos["botones_menu"])):
         elementos["botones_menu"][i].setChecked(i == numero)
+
 
 def ir_contactos():
     cambiar_pagina(0)
 
+
 def ir_exportar():
     cambiar_pagina(1)
+
 
 def ir_herramientas():
     cambiar_pagina(2)
 
+
 def ir_ayuda():
     cambiar_pagina(3)
+
 
 def crear_barra_lateral():
     barra = QFrame()
@@ -535,6 +650,8 @@ def crear_ventana():
 
     ventana.setCentralWidget(central)
     ventana.statusBar().showMessage("Listo")
+
+    actualizar_tabla()
 
     cambiar_pagina(0)
     return ventana
