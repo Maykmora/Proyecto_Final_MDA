@@ -134,19 +134,73 @@ QStatusBar {
     background-color: #ffffff;
     color: #64748b;
 }
+
+QMessageBox {
+    background-color: #ffffff;
+}
+QMessageBox QLabel {
+    color: #475569;
+    font-size: 14px;
+    background-color: transparent;
+}
+QMessageBox QLabel#qt_msgbox_label {
+    font-size: 18px;
+    font-weight: bold;
+    min-width: 380px;
+}
+QMessageBox[tipo="exito"] QLabel#qt_msgbox_label {
+    color: #15803d;
+}
+QMessageBox[tipo="info"] QLabel#qt_msgbox_label {
+    color: #3730a3;
+}
+QMessageBox[tipo="advertencia"] QLabel#qt_msgbox_label {
+    color: #b45309;
+}
+QMessageBox[tipo="error"] QLabel#qt_msgbox_label {
+    color: #b91c1c;
+}
+QMessageBox QPushButton {
+    background-color: #4f46e5;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 28px;
+    min-width: 70px;
+    font-weight: bold;
+}
+QMessageBox QPushButton:hover {
+    background-color: #4338ca;
+}
 """
 
 
-def mensaje_exito(texto):
-    QMessageBox.information(elementos["ventana"], "Operación exitosa", texto)
+def mostrar_mensaje(tipo, icono, titulo_ventana, texto, detalle):
+    caja = QMessageBox(elementos["ventana"])
+    caja.setProperty("tipo", tipo)
+    caja.setIcon(icono)
+    caja.setWindowTitle(titulo_ventana)
+    caja.setText(texto)
+    if detalle != "":
+        caja.setInformativeText(detalle)
+    caja.setStandardButtons(QMessageBox.StandardButton.Ok)
+    caja.exec()
 
 
-def mensaje_advertencia(texto):
-    QMessageBox.warning(elementos["ventana"], "Advertencia", texto)
+def mensaje_exito(texto, detalle=""):
+    mostrar_mensaje("exito", QMessageBox.Icon.Information, "Éxito", texto, detalle)
 
 
-def mensaje_error(texto):
-    QMessageBox.critical(elementos["ventana"], "Error", texto)
+def mensaje_info(texto, detalle=""):
+    mostrar_mensaje("info", QMessageBox.Icon.Information, "Información", texto, detalle)
+
+
+def mensaje_advertencia(texto, detalle=""):
+    mostrar_mensaje("advertencia", QMessageBox.Icon.Warning, "Atención", texto, detalle)
+
+
+def mensaje_error(texto, detalle=""):
+    mostrar_mensaje("error", QMessageBox.Icon.Critical, "Error", texto, detalle)
 
 
 def crear_boton(texto, funcion, tipo):
@@ -365,27 +419,31 @@ def leer_formulario():
     }
 
     if contacto["id"] == "":
-        mensaje_advertencia("Debe escribir el ID del contacto.")
+        mensaje_advertencia("Falta el ID",
+                            "Escriba el ID del contacto antes de continuar.")
         return None
 
     try:
         contacto["id"] = int(contacto["id"])
     except ValueError:
-        mensaje_advertencia("El ID debe ser un número entero.")
+        mensaje_advertencia("ID no válido",
+                            "El ID debe ser un número entero, por ejemplo 1.")
         return None
 
     if contacto["id"] <= 0:
-        mensaje_advertencia("El ID debe ser un número mayor que cero.")
+        mensaje_advertencia("ID no válido",
+                            "El ID debe ser un número mayor que cero.")
         return None
 
     if (contacto["nombre"] == "" or contacto["telefono"] == ""
             or contacto["correo"] == "" or contacto["ciudad"] == ""):
-        mensaje_advertencia("Debe llenar todos los campos del contacto.")
+        mensaje_advertencia("Faltan datos",
+                            "Llene todos los campos: nombre, teléfono, correo y ciudad.")
         return None
 
     problema = contactos.validar_largos(contacto)
     if problema != "":
-        mensaje_advertencia(problema)
+        mensaje_advertencia("Dato demasiado largo", problema)
         return None
 
     return contacto
@@ -395,13 +453,15 @@ def leer_id_buscado():
     texto = elementos["campo_id"].text().strip()
 
     if texto == "":
-        mensaje_advertencia("Escriba el ID que desea buscar.")
+        mensaje_advertencia("Falta el ID",
+                            "Escriba el ID del contacto que desea buscar.")
         return None
 
     try:
         numero = int(texto)
     except ValueError:
-        mensaje_advertencia("El ID debe ser un número entero.")
+        mensaje_advertencia("ID no válido",
+                            "El ID debe ser un número entero, por ejemplo 1.")
         return None
 
     return numero
@@ -419,12 +479,23 @@ def limpiar_formulario():
 
 def mostrar_error_archivo(error):
     if isinstance(error, PermissionError):
-        mensaje_error("No hay permisos para leer o escribir el archivo de contactos.")
+        mensaje_error("Sin permisos",
+                      "No se puede leer ni escribir en los archivos de la agenda.\n"
+                      "Revise los permisos de la carpeta del proyecto.")
     elif isinstance(error, ValueError):
-        mensaje_error("El archivo de contactos está dañado o tiene datos incorrectos.\n\n"
-                      + str(error))
+        mensaje_error("Archivo dañado",
+                      "Un archivo de la agenda tiene datos incorrectos y no se pudo leer.\n\n"
+                      "Detalle: " + str(error))
     else:
-        mensaje_error("No se pudo usar el archivo de contactos.\n\n" + str(error))
+        mensaje_error("No se pudo usar el archivo",
+                      "Ocurrió un problema al acceder a los archivos de la agenda.\n\n"
+                      "Detalle: " + str(error))
+
+
+def mostrar_avisos():
+    for aviso in contactos.avisos:
+        mensaje_advertencia("Índice reconstruido", aviso)
+    contactos.avisos.clear()
 
 
 def mostrar_posiciones(operacion, numero, inicio, fin):
@@ -471,15 +542,22 @@ def agregar_contacto():
         mostrar_error_archivo(error)
         return
 
+    mostrar_avisos()
+
     if resultado is None:
-        mensaje_advertencia("Ya existe un contacto con el ID " + str(contacto["id"]) + ".")
+        mensaje_advertencia("ID repetido",
+                            "Ya existe un contacto con el ID " + str(contacto["id"]) + ".\n"
+                            "Use otro ID o el botón Modificar.")
         return
 
     numero, inicio, fin = resultado
     mostrar_posiciones("Se escribió el", numero, inicio, fin)
     actualizar_tabla()
     limpiar_formulario()
-    mensaje_exito("Contacto agregado en el registro N° " + str(numero) + ".")
+    mensaje_exito("Contacto agregado",
+                  "Se guardó en el registro N° " + str(numero)
+                  + ", que empieza en el byte " + str(inicio) + " del archivo.\n"
+                  "El índice también se actualizó.")
 
 
 def buscar_contacto():
@@ -493,13 +571,17 @@ def buscar_contacto():
         mostrar_error_archivo(error)
         return
 
+    mostrar_avisos()
+
     if resultado is None:
-        mensaje_advertencia("No existe un contacto con el ID " + str(id_buscado) + ".")
+        mensaje_advertencia("Contacto no encontrado",
+                            "No existe ningún contacto con el ID " + str(id_buscado) + ".")
         return
 
     numero, contacto, inicio, fin = resultado
     llenar_formulario(contacto)
-    mostrar_posiciones("Se leyó el", numero, inicio, fin)
+    mostrar_posiciones("Según el índice, el ID " + str(id_buscado) + " está en el",
+                       numero, inicio, fin)
     elementos["tabla_contactos"].selectRow(numero)
     elementos["ventana"].statusBar().showMessage("Contacto encontrado", 3000)
 
@@ -515,52 +597,67 @@ def modificar_contacto():
         mostrar_error_archivo(error)
         return
 
+    mostrar_avisos()
+
     if resultado is None:
-        mensaje_advertencia("No existe un contacto con el ID " + str(contacto["id"])
-                            + ". Use el botón Agregar para crearlo.")
+        mensaje_advertencia("Contacto no encontrado",
+                            "No existe ningún contacto con el ID " + str(contacto["id"]) + ".\n"
+                            "Use el botón Agregar para crearlo.")
         return
 
     numero, inicio, fin = resultado
     mostrar_posiciones("Se sobrescribió el", numero, inicio, fin)
     actualizar_tabla()
     elementos["tabla_contactos"].selectRow(numero)
-    mensaje_exito("Contacto modificado. Solo se sobrescribió el registro N° "
-                  + str(numero) + ".")
+    mensaje_exito("Contacto modificado",
+                  "Solo se sobrescribió el registro N° " + str(numero)
+                  + ". El resto del archivo no cambió.")
+
+
+def revisar_al_iniciar():
+    actualizar_tabla()
+    try:
+        contactos.obtener_indice()
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+    mostrar_avisos()
 
 
 def exportar_json():
-    mensaje_advertencia("La exportación a JSON se implementa en el COMMIT 4.")
+    mensaje_info("Función pendiente",
+                 "PENDIENTE")
 
 
 def generar_pdf():
-    mensaje_advertencia("El reporte PDF se implementa en el COMMIT 4.")
+    mensaje_info("Función pendiente",
+                 "PENDIENTE")
 
 
 def verificar_integridad():
-    mensaje_advertencia("La verificación de integridad se implementa en el COMMIT 5.")
+    mensaje_info("Función pendiente",
+                 "PENDIENTE")
 
 
 def crear_respaldo():
-    mensaje_advertencia("El respaldo ZIP se implementa en el COMMIT 5.")
+    mensaje_info("Función pendiente",
+                 "PENDIENTE")
 
 
 def informacion_archivo():
-    mensaje_advertencia("La información del archivo se implementa en el COMMIT 6.")
+    mensaje_info("Función pendiente",
+                 "PENDIENTE")
 
 
 def abrir_manual():
-    mensaje_exito("MANUAL DE USUARIO (simulado)\n\n"
-                  "1. Entre a la sección Contactos.\n"
-                  "2. Llene el formulario y presione Agregar.\n"
-                  "3. Para buscar, escriba el ID y presione Buscar por ID.\n"
-                  "4. Para modificar, busque el contacto, cambie los datos "
-                  "y presione Modificar.")
+    mensaje_info("Manual de usuario",
+                 "PENDIENTE")
 
 
 def acerca_de():
-    mensaje_exito("Agenda de Contactos con Acceso Aleatorio\n\n"
-                  "Laboratorio No. 2 - Manejo de archivos\n"
-                  "Universidad Rafael Landívar - Campus de Quetzaltenango")
+    mensaje_info("Agenda de Contactos con Acceso Aleatorio",
+                 "Laboratorio No. 2 - Manejo de archivos\n"
+                 "Universidad Rafael Landívar - Campus de Quetzaltenango")
 
 
 def cambiar_pagina(numero):
@@ -619,9 +716,6 @@ def crear_barra_lateral():
     elementos["botones_menu"] = botones
 
     layout.addStretch()
-    version = QLabel("Laboratorio 2 - v1.0")
-    version.setObjectName("version")
-    layout.addWidget(version)
     return barra
 
 
@@ -649,9 +743,6 @@ def crear_ventana():
     layout.addWidget(paginas)
 
     ventana.setCentralWidget(central)
-    ventana.statusBar().showMessage("Listo")
-
-    actualizar_tabla()
 
     cambiar_pagina(0)
     return ventana

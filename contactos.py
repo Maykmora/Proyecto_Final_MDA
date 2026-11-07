@@ -1,4 +1,5 @@
 import os
+import indice
 
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 ARCHIVO_CONTACTOS = os.path.join(CARPETA, "contactos.dat")
@@ -14,6 +15,8 @@ LARGOS = {
 }
 
 TAMANO_REGISTRO = 100
+
+avisos = []
 
 def ajustar_campo(texto, largo):
     datos = texto.encode("utf-8")
@@ -66,16 +69,68 @@ def leer_registro(numero):
     contacto = convertir_registro(datos)
     return contacto, posicion_inicial, posicion_final
 
-def buscar_por_id(id_buscado):
+def reconstruir_indice(motivo):
+    datos_indice = {}
     total = contar_registros()
     for numero in range(total):
         contacto, inicio, fin = leer_registro(numero)
-        if contacto["id"] == id_buscado:
-            return numero, contacto, inicio, fin
-    return None
+        datos_indice[str(contacto["id"])] = numero
+
+    indice.guardar_indice(datos_indice)
+    avisos.append("El índice " + motivo + ".\nSe reconstruyó leyendo el archivo de contactos.")
+    return datos_indice
+
+def obtener_indice():
+    total = contar_registros()
+    try:
+        datos_indice = indice.cargar_indice()
+    except FileNotFoundError:
+        if total == 0:
+            return {}
+        return reconstruir_indice("no existía")
+    except ValueError:
+        return reconstruir_indice("estaba dañado")
+
+    if len(datos_indice) != total:
+        return reconstruir_indice("no coincidía con la cantidad de contactos del archivo")
+
+    return datos_indice
+
+def leer_con_indice(numero, id_buscado):
+    if numero >= contar_registros():
+        return None
+    contacto, inicio, fin = leer_registro(numero)
+    if contacto["id"] != id_buscado:
+        return None
+    return contacto, inicio, fin
+
+def buscar_por_id(id_buscado):
+    datos_indice = obtener_indice()
+    clave = str(id_buscado)
+
+    if clave not in datos_indice:
+        return None
+
+    numero = datos_indice[clave]
+    resultado = leer_con_indice(numero, id_buscado)
+
+    if resultado is None:
+        datos_indice = reconstruir_indice("tenía posiciones que no coinciden con el archivo")
+        if clave not in datos_indice:
+            return None
+        numero = datos_indice[clave]
+        resultado = leer_con_indice(numero, id_buscado)
+        if resultado is None:
+            return None
+
+    contacto, inicio, fin = resultado
+    return numero, contacto, inicio, fin
 
 def agregar_contacto(contacto):
-    if buscar_por_id(contacto["id"]) is not None:
+    datos_indice = obtener_indice()
+    clave = str(contacto["id"])
+
+    if clave in datos_indice:
         return None
 
     numero = contar_registros()
@@ -90,6 +145,9 @@ def agregar_contacto(contacto):
         inicio = archivo.tell()
         archivo.write(registro)
         fin = archivo.tell()
+
+    datos_indice[clave] = numero
+    indice.guardar_indice(datos_indice)
 
     return numero, inicio, fin
 
