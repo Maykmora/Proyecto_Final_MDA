@@ -3,9 +3,10 @@ import hashlib
 import zipfile
 from datetime import datetime
 
-CARPETA = os.path.dirname(os.path.abspath(__file__))
-ARCHIVO_HASH = os.path.join(CARPETA, "contactos.sha256")
-ARCHIVO_HASH_TEMPORAL = os.path.join(CARPETA, "contactos.sha256.tmp")
+import rutas
+
+ARCHIVO_HASH = os.path.join(rutas.CARPETA_DATOS, "contactos.sha256")
+ARCHIVO_HASH_TEMPORAL = os.path.join(rutas.CARPETA_DATOS, "contactos.sha256.tmp")
 
 
 def calcular_hash(ruta_archivo):
@@ -25,6 +26,8 @@ def guardar_hash(ruta_archivo):
 
     hash_actual = calcular_hash(ruta_archivo)
 
+    rutas.crear_carpetas()
+
     with open(ARCHIVO_HASH_TEMPORAL, "w", encoding="utf-8") as archivo:
         archivo.write(hash_actual)
     os.replace(ARCHIVO_HASH_TEMPORAL, ARCHIVO_HASH)
@@ -35,8 +38,11 @@ def guardar_hash(ruta_archivo):
 def leer_hash_guardado():
     if not os.path.exists(ARCHIVO_HASH):
         return None
-    with open(ARCHIVO_HASH, "r", encoding="utf-8") as archivo:
-        return archivo.read().strip()
+    try:
+        with open(ARCHIVO_HASH, "r", encoding="utf-8") as archivo:
+            return archivo.read().strip()
+    except UnicodeDecodeError:
+        return ""
 
 
 def hash_valido(texto):
@@ -68,17 +74,18 @@ def verificar_integridad(ruta_archivo):
     return "modificado", hash_guardado, hash_actual
 
 
-def crear_respaldo(rutas):
+def crear_respaldo(lista_rutas):
     existentes = []
-    for ruta in rutas:
+    for ruta in lista_rutas:
         if os.path.exists(ruta):
             existentes.append(ruta)
 
     if len(existentes) == 0:
         return None
 
+    rutas.crear_carpetas()
     marca = datetime.now().strftime("%Y%m%d_%H%M%S")
-    ruta_zip = os.path.join(CARPETA, "respaldo_" + marca + ".zip")
+    ruta_zip = os.path.join(rutas.CARPETA_REPORTES, "respaldo_" + marca + ".zip")
 
     detalle = []
     tamano_original = 0

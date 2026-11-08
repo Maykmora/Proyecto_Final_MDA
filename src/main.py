@@ -5,6 +5,7 @@ import interfaz
 
 
 def main():
+    sys.excepthook = interfaz.mostrar_error_inesperado
     app = QApplication(sys.argv)
     ventana = interfaz.crear_ventana()
     ventana.show()

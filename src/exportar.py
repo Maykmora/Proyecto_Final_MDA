@@ -6,11 +6,11 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 import contactos
+import rutas
 
-CARPETA = os.path.dirname(os.path.abspath(__file__))
-ARCHIVO_JSON = os.path.join(CARPETA, "contactos.json")
-ARCHIVO_JSON_TEMPORAL = os.path.join(CARPETA, "contactos.tmp")
-ARCHIVO_PDF = os.path.join(CARPETA, "reporte_contactos.pdf")
+ARCHIVO_JSON = os.path.join(rutas.CARPETA_REPORTES, "contactos.json")
+ARCHIVO_JSON_TEMPORAL = os.path.join(rutas.CARPETA_REPORTES, "contactos.tmp")
+ARCHIVO_PDF = os.path.join(rutas.CARPETA_REPORTES, "reporte_contactos.pdf")
 
 
 def obtener_lista_contactos():
@@ -25,6 +25,8 @@ def exportar_json():
 
     if len(lista) == 0:
         return 0
+
+    rutas.crear_carpetas()
 
     with open(ARCHIVO_JSON_TEMPORAL, "w", encoding="utf-8") as archivo:
         json.dump(lista, archivo, ensure_ascii=False, indent=4)

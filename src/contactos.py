@@ -1,8 +1,9 @@
 import os
 import indice
 import integridad
+import rutas
 
-CARPETA = os.path.dirname(os.path.abspath(__file__))
+CARPETA = rutas.CARPETA_DATOS
 ARCHIVO_CONTACTOS = os.path.join(CARPETA, "contactos.dat")
 
 CAMPOS = ["id", "nombre", "telefono", "correo", "ciudad"]
@@ -137,6 +138,7 @@ def agregar_contacto(contacto):
     numero = contar_registros()
     registro = construir_registro(contacto)
 
+    rutas.crear_carpetas()
     if not os.path.exists(ARCHIVO_CONTACTOS):
         with open(ARCHIVO_CONTACTOS, "wb") as archivo:
             pass

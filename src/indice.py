@@ -1,12 +1,14 @@
 import os
 import json
 
-CARPETA = os.path.dirname(os.path.abspath(__file__))
-ARCHIVO_INDICE = os.path.join(CARPETA, "indice.json")
-ARCHIVO_TEMPORAL = os.path.join(CARPETA, "indice.tmp")
+import rutas
+
+ARCHIVO_INDICE = os.path.join(rutas.CARPETA_DATOS, "indice.json")
+ARCHIVO_TEMPORAL = os.path.join(rutas.CARPETA_DATOS, "indice.tmp")
 
 
 def guardar_indice(datos_indice):
+    rutas.crear_carpetas()
     with open(ARCHIVO_TEMPORAL, "w", encoding="utf-8") as archivo:
         json.dump(datos_indice, archivo, indent=2)
     os.replace(ARCHIVO_TEMPORAL, ARCHIVO_INDICE)

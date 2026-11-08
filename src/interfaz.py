@@ -1,16 +1,20 @@
+import os
+import traceback
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QStackedWidget, QFrame,
     QVBoxLayout, QHBoxLayout, QFormLayout,
     QPushButton, QLabel, QLineEdit,
     QTableWidget, QHeaderView, QAbstractItemView,
-    QTableWidgetItem, QMessageBox,
+    QTableWidgetItem, QMessageBox, QDialog,
 )
 
 import contactos
 import exportar
 import indice
 import integridad
+import metadatos
 
 elementos = {}
 
@@ -138,6 +142,10 @@ QStatusBar {
     color: #64748b;
 }
 
+QDialog {
+    background-color: #f1f5f9;
+}
+
 QMessageBox {
     background-color: #ffffff;
 }
@@ -204,6 +212,14 @@ def mensaje_advertencia(texto, detalle=""):
 
 def mensaje_error(texto, detalle=""):
     mostrar_mensaje("error", QMessageBox.Icon.Critical, "Error", texto, detalle)
+
+
+def mostrar_error_inesperado(tipo_error, valor, traza):
+    traceback.print_exception(tipo_error, valor, traza)
+    mensaje_error("Error inesperado",
+                  "Ocurrió un problema que la aplicación no esperaba, "
+                  "pero se mantiene abierta.\n\n"
+                  "Detalle: " + str(valor))
 
 
 def crear_boton(texto, funcion, tipo):
@@ -523,7 +539,7 @@ def actualizar_tabla():
         lista = contactos.listar_contactos()
     except (OSError, ValueError) as error:
         mostrar_error_archivo(error)
-        return
+        return False
 
     tabla.setRowCount(0)
     for numero, contacto, inicio in lista:
@@ -534,6 +550,7 @@ def actualizar_tabla():
         for columna in range(len(valores)):
             tabla.setItem(fila, columna, QTableWidgetItem(str(valores[columna])))
 
+    return True
 
 def agregar_contacto():
     contacto = leer_formulario()
@@ -641,7 +658,7 @@ def revisar_integridad(es_manual):
             contactos.ARCHIVO_CONTACTOS)
     except (OSError, ValueError) as error:
         mostrar_error_archivo(error)
-        return
+        return False
 
     if estado == "correcto":
         mostrar_estado_integridad("correcto, sin cambios externos", "bueno")
@@ -675,10 +692,14 @@ def revisar_integridad(es_manual):
             mensaje_info("Sin datos",
                          "Todavía no hay contactos guardados, no hay nada que verificar.")
 
+    return True
+
 
 def revisar_al_iniciar():
-    revisar_integridad(False)
-    actualizar_tabla()
+    if not revisar_integridad(False):
+        return
+    if not actualizar_tabla():
+        return
     try:
         contactos.obtener_indice()
     except (OSError, ValueError) as error:
@@ -762,13 +783,75 @@ def crear_respaldo():
 
 
 def informacion_archivo():
-    mensaje_info("Función pendiente",
-                 "PENDIENTE")
+    rutas = [contactos.ARCHIVO_CONTACTOS, indice.ARCHIVO_INDICE, integridad.ARCHIVO_HASH]
+
+    try:
+        lista = metadatos.obtener_informacion_archivos(rutas)
+    except OSError as error:
+        mostrar_error_archivo(error)
+        return
+
+    try:
+        total = contactos.contar_registros()
+        if os.path.exists(contactos.ARCHIVO_CONTACTOS):
+            resumen = ("Registros guardados: " + str(total) + "   |   Tamaño de cada registro: "
+                       + str(contactos.TAMANO_REGISTRO) + " bytes")
+        else:
+            resumen = "El archivo de contactos todavía no existe."
+    except ValueError:
+        resumen = "No se pudo contar los registros: el archivo de contactos está dañado."
+
+    dialogo = QDialog(elementos["ventana"])
+    dialogo.setWindowTitle("Información del archivo")
+    dialogo.setMinimumWidth(860)
+
+    layout = QVBoxLayout(dialogo)
+    layout.setContentsMargins(25, 22, 25, 22)
+    layout.setSpacing(12)
+
+    layout.addLayout(crear_titulo(
+        "Información del archivo",
+        "Carpeta: " + contactos.CARPETA))
+
+    etiqueta_resumen = QLabel(resumen)
+    etiqueta_resumen.setObjectName("etiqueta_estado")
+    etiqueta_resumen.setWordWrap(True)
+    layout.addWidget(etiqueta_resumen)
+
+    columnas = ["Archivo", "Tamaño", "Última modificación", "Lectura", "Escritura"]
+    tabla = QTableWidget(len(lista), len(columnas))
+    tabla.setHorizontalHeaderLabels(columnas)
+    tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+    tabla.verticalHeader().setVisible(False)
+    tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    tabla.setAlternatingRowColors(True)
+    tabla.setMinimumHeight(170)
+
+    for fila in range(len(lista)):
+        datos = lista[fila]
+        if datos["existe"]:
+            valores = [datos["nombre"], str(datos["tamano"]) + " bytes", datos["modificado"],
+                       "Sí" if datos["lectura"] else "No",
+                       "Sí" if datos["escritura"] else "No"]
+        else:
+            valores = [datos["nombre"] + " (no existe)", "-", "-", "-", "-"]
+        for columna in range(len(valores)):
+            tabla.setItem(fila, columna, QTableWidgetItem(valores[columna]))
+
+    layout.addWidget(tabla)
+
+    fila_boton = QHBoxLayout()
+    fila_boton.addStretch()
+    fila_boton.addWidget(crear_boton("Cerrar", dialogo.accept, "primario"))
+    layout.addLayout(fila_boton)
+
+    dialogo.exec()
 
 
 def abrir_manual():
     mensaje_info("Manual de usuario",
-                 "PENDIENTE")
+                 "FUNCIÓN SIMULADA")
 
 
 def acerca_de():
