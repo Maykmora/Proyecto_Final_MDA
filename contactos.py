@@ -1,5 +1,6 @@
 import os
 import indice
+import integridad
 
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 ARCHIVO_CONTACTOS = os.path.join(CARPETA, "contactos.dat")
@@ -148,6 +149,7 @@ def agregar_contacto(contacto):
 
     datos_indice[clave] = numero
     indice.guardar_indice(datos_indice)
+    integridad.guardar_hash(ARCHIVO_CONTACTOS)
 
     return numero, inicio, fin
 
@@ -165,6 +167,7 @@ def modificar_contacto(contacto):
         archivo.write(registro)
         fin = archivo.tell()
 
+    integridad.guardar_hash(ARCHIVO_CONTACTOS)
     return numero, inicio, fin
 
 def listar_contactos():

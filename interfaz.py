@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
 
 import contactos
 import exportar
+import indice
+import integridad
 
 elementos = {}
 
@@ -616,7 +618,66 @@ def modificar_contacto():
                   + ". El resto del archivo no cambió.")
 
 
+def partir_hash(texto):
+    return texto[:32] + "\n" + texto[32:]
+
+
+def mostrar_estado_integridad(texto, tipo):
+    etiqueta = elementos["etiqueta_integridad"]
+    etiqueta.setText("Estado de integridad: " + texto)
+    if tipo == "bueno":
+        etiqueta.setStyleSheet("background-color: #dcfce7; color: #15803d; "
+                               "border-radius: 8px; padding: 8px 12px; font-weight: bold;")
+    elif tipo == "malo":
+        etiqueta.setStyleSheet("background-color: #fee2e2; color: #b91c1c; "
+                               "border-radius: 8px; padding: 8px 12px; font-weight: bold;")
+    else:
+        etiqueta.setStyleSheet("")
+
+
+def revisar_integridad(es_manual):
+    try:
+        estado, hash_guardado, hash_actual = integridad.verificar_integridad(
+            contactos.ARCHIVO_CONTACTOS)
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if estado == "correcto":
+        mostrar_estado_integridad("correcto, sin cambios externos", "bueno")
+        if es_manual:
+            mensaje_exito("Integridad correcta",
+                          "El archivo de contactos no fue modificado fuera de la aplicación.\n\n"
+                          "Hash SHA-256:\n" + partir_hash(hash_actual))
+
+    elif estado == "modificado":
+        mostrar_estado_integridad("ARCHIVO MODIFICADO fuera de la aplicación", "malo")
+        mensaje_advertencia("Archivo modificado",
+                            "El archivo de contactos fue modificado fuera de la aplicación.\n\n"
+                            "Hash guardado:\n" + partir_hash(hash_guardado) + "\n\n"
+                            "Hash actual:\n" + partir_hash(hash_actual))
+
+    elif estado == "hash_creado":
+        mostrar_estado_integridad("hash generado con el estado actual", "bueno")
+        mensaje_info("Hash generado",
+                     "No se encontró un hash válido del archivo de contactos.\n"
+                     "Se generó uno nuevo con el contenido actual.")
+
+    elif estado == "archivo_faltante":
+        mostrar_estado_integridad("el archivo de contactos no existe", "malo")
+        mensaje_advertencia("Archivo no encontrado",
+                            "Existe un hash guardado, pero el archivo de contactos no está.\n"
+                            "Fue eliminado o movido fuera de la aplicación.")
+
+    else:
+        mostrar_estado_integridad("sin datos para verificar", "normal")
+        if es_manual:
+            mensaje_info("Sin datos",
+                         "Todavía no hay contactos guardados, no hay nada que verificar.")
+
+
 def revisar_al_iniciar():
+    revisar_integridad(False)
     actualizar_tabla()
     try:
         contactos.obtener_indice()
@@ -664,13 +725,40 @@ def generar_pdf():
 
 
 def verificar_integridad():
-    mensaje_info("Función pendiente",
-                 "PENDIENTE")
+    revisar_integridad(True)
 
 
 def crear_respaldo():
-    mensaje_info("Función pendiente",
-                 "PENDIENTE")
+    try:
+        resultado = integridad.crear_respaldo(
+            [contactos.ARCHIVO_CONTACTOS, indice.ARCHIVO_INDICE])
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if resultado is None:
+        mensaje_advertencia("Nada que respaldar",
+                            "Todavía no hay archivos de contactos para respaldar.")
+        return
+
+    ruta_zip, detalle, original, comprimido, tamano_zip = resultado
+
+    lineas = ""
+    for nombre, tamano_original, tamano_comprimido in detalle:
+        lineas = (lineas + nombre + ": " + str(tamano_original)
+                  + " bytes -> " + str(tamano_comprimido) + " bytes\n")
+
+    ahorro = 0
+    if original > 0:
+        ahorro = round((1 - comprimido / original) * 100, 1)
+
+    mensaje_exito("Respaldo creado",
+                  lineas + "\n"
+                  "Tamaño original: " + str(original) + " bytes\n"
+                  "Tamaño comprimido: " + str(comprimido) + " bytes (ahorro de "
+                  + str(ahorro) + " %)\n"
+                  "Tamaño del archivo ZIP: " + str(tamano_zip) + " bytes\n\n"
+                  "Archivo:\n" + ruta_zip)
 
 
 def informacion_archivo():
