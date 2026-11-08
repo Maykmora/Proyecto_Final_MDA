@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 
 import contactos
+import exportar
 
 elementos = {}
 
@@ -481,7 +482,8 @@ def mostrar_error_archivo(error):
     if isinstance(error, PermissionError):
         mensaje_error("Sin permisos",
                       "No se puede leer ni escribir en los archivos de la agenda.\n"
-                      "Revise los permisos de la carpeta del proyecto.")
+                      "Revise los permisos de la carpeta del proyecto y que el "
+                      "archivo no esté abierto en otro programa.")
     elif isinstance(error, ValueError):
         mensaje_error("Archivo dañado",
                       "Un archivo de la agenda tiene datos incorrectos y no se pudo leer.\n\n"
@@ -625,13 +627,40 @@ def revisar_al_iniciar():
 
 
 def exportar_json():
-    mensaje_info("Función pendiente",
-                 "PENDIENTE")
+    try:
+        cantidad = exportar.exportar_json()
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if cantidad == 0:
+        mensaje_advertencia("No hay contactos",
+                            "Agregue al menos un contacto antes de exportar.")
+        return
+
+    mensaje_exito("Exportación completada",
+                  "Contactos exportados: " + str(cantidad) + "\n\n"
+                  "Archivo:\n" + exportar.ARCHIVO_JSON)
 
 
 def generar_pdf():
-    mensaje_info("Función pendiente",
-                 "PENDIENTE")
+    try:
+        cantidad = exportar.exportar_json()
+        if cantidad > 0:
+            total, fecha = exportar.generar_pdf()
+    except (OSError, ValueError) as error:
+        mostrar_error_archivo(error)
+        return
+
+    if cantidad == 0:
+        mensaje_advertencia("No hay contactos",
+                            "Agregue al menos un contacto antes de generar el reporte.")
+        return
+
+    mensaje_exito("Reporte PDF generado",
+                  "Contactos incluidos: " + str(total) + "\n"
+                  "Fecha de generación: " + fecha + "\n\n"
+                  "Archivo:\n" + exportar.ARCHIVO_PDF)
 
 
 def verificar_integridad():
