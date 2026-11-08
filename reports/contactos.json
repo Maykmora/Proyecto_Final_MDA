@@ -1,0 +1,16 @@
+[
+    {
+        "id": 1,
+        "nombre": "Mayk",
+        "telefono": "12312",
+        "correo": "Maykmora",
+        "ciudad": "Xela"
+    },
+    {
+        "id": 2,
+        "nombre": "Kari",
+        "telefono": "35321",
+        "correo": "kari",
+        "ciudad": "Malacatan"
+    }
+]
